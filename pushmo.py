@@ -176,7 +176,8 @@ class Config(object):
             # check falling.
             for dx in (-1,0,+1):
                 x1 = x0+dx
-                z = zp
+                z = self.getdepth(x1, y0)
+                z = max(z, zp)
                 for y1 in xrange(y0, -1, -1):
                     z1 = self.getdepth(x1, y1-1)
                     if z < z1:
@@ -238,12 +239,26 @@ def solve_pushmo(board, verbose=True, max_depth=3):
     return r
 
 def main(argv):
+    import getopt
     import fileinput
-    board = Board([ line.strip() for line in fileinput.input() ])
+    def usage():
+        print 'usage: %s [-v] [-m max_depth] [file ...]' % argv[0]
+        return 100
+    try:
+        (opts, args) = getopt.getopt(argv[1:], 'vm:')
+    except getopt.GetoptError:
+        return usage()
+    verbose = False
+    max_depth = 3
+    for (k, v) in opts:
+        if k == '-v': verbose = True
+        elif k == '-m': max_depth = int(v)
+    fp = fileinput.input(args)
+    board = Board([ line.strip() for line in fp ])
     print '-- Initial state --'
     board.show()
     print
-    steps = solve_pushmo(board)
+    steps = solve_pushmo(board, verbose=verbose, max_depth=max_depth)
     if not steps:
         print 'Unsolvable.'
     else:

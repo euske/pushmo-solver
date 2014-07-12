@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 import sys
 
-MAX = 3
-MOVES = [(-1,+1),(0,+1),(+1,+1), (-1,0),(+1,0), (-1,-1),(0,-1),(+1,-1)]
+INF = sys.maxint
 
 class Segment(object):
 
@@ -95,7 +94,7 @@ class Config(object):
 
     def getdepth(self, x, y):
         if y < 0:
-            return MAX+1
+            return INF
         i = self.board.getseg(x, y)
         if i is None:
             return 0
@@ -113,17 +112,20 @@ class Config(object):
         # front block.
         sf = self.board.getseg(x, y)
         if sf is not None and sf != sp and z < zp-1:
-            r.append((sf, 0, zp-1))
+            if 0 < y:
+                r.append((sf, 0, zp-1))
+            else:
+                r.append((sf, 0, None))
         # side block. (left)
         sl = self.board.getseg(x-1, y)
         zl = self.getdepth(x-1, y)
         if sl is not None and sl != sp and z < zl:
-            r.append((sl, z+1, MAX))
+            r.append((sl, z+1, None))
         # side block. (right)
         sr = self.board.getseg(x+1, y)
         zr = self.getdepth(x+1, y)
         if sr is not None and sr != sp and z < zr:
-            r.append((sr, z+1, MAX))
+            r.append((sr, z+1, None))
         return r
 
     def getlocs(self, loc):
@@ -174,23 +176,26 @@ class Config(object):
             # check falling.
             for dx in (-1,0,+1):
                 x1 = x0+dx
-                for y1 in xrange(y0-1, -1, -1):
-                    if zp < self.getdepth(x1, y1-1):
-                        #print ' fall', (x0,y0), (x1, y1)
+                z = zp
+                for y1 in xrange(y0, -1, -1):
+                    z1 = self.getdepth(x1, y1-1)
+                    if z < z1:
+                        #print ' fall', (x0,y0), (x1, y1), z,z1
                         expand(x1, y1)
                         break
+                    z = max(z,z1)
         (x,y) = loc
         expand(x, y)
         return locs
 
-def solve_pushmo(board, verbose=False):
+def solve_pushmo(board, verbose=True, max_depth=3):
     depths = tuple( 0 for _ in board.segments )
     queue = []
     queue.append((0, None, depths, board.start))
     states = {}
     solution = None
     while queue:
-        queue.sort()
+        queue.sort(key=lambda e:e[0])
         prev = queue.pop(0)
         (n, _, depths, loc0) = prev
         n += 1
@@ -218,6 +223,8 @@ def solve_pushmo(board, verbose=False):
         locsets.append(newlocs)
         for loc in newlocs:
             for (i,z0,z1) in config.getsegs(loc):
+                if z1 is None:
+                    z1 = max_depth
                 for z in xrange(z0, z1+1):
                     d = depths[:i] + (z,) + depths[i+1:]
                     if d in states: continue

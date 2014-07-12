@@ -23,40 +23,45 @@ class Board(object):
     def __init__(self, rows):
         self.width = len(rows[0])
         self.height = len(rows)
+        self.start = None
         self.goal = None
         self.segments = []
         self.loc2seg = {}
         d = {}
         for (y,row) in enumerate(reversed(rows)):
             for (x,c) in enumerate(row):
-                if c == '*':
+                if c == '@':
+                    self.start = (x,y)
+                elif c == '*':
                     self.goal = (x,y)
-                if not c.isalnum(): continue
-                if c in d:
-                    i = d[c]
+                elif not c.isalnum():
+                    pass
                 else:
-                    i = len(self.segments)
-                    seg = Segment(c)
-                    self.segments.append(seg)
-                    d[c] = i
-                p = (x,y)
-                self.loc2seg[p] = i
-                self.segments[i].add(p)
+                    if c in d:
+                        i = d[c]
+                    else:
+                        i = len(self.segments)
+                        seg = Segment(c)
+                        self.segments.append(seg)
+                        d[c] = i
+                    p = (x,y)
+                    self.loc2seg[p] = i
+                    self.segments[i].add(p)
         return
 
-    def getseg(self, loc):
-        return self.loc2seg.get(loc)
+    def getseg(self, x, y):
+        return self.loc2seg.get((x,y))
 
-    def show(self, loc):
+    def show(self):
         for y in xrange(self.height, -1, -1):
             row = []
             for x in xrange(0, self.width):
-                if loc == (x,y):
+                if self.start == (x,y):
                     row.append('@')
                 elif self.goal == (x,y):
                     row.append('*')
                 else:
-                    i = self.getseg((x,y))
+                    i = self.getseg(x, y)
                     if i is None:
                         row.append('.')
                     else:
@@ -80,7 +85,7 @@ class Config(object):
                 elif self.board.goal == (x,y):
                     row.append('*')
                 else:
-                    i = self.board.getseg((x,y))
+                    i = self.board.getseg(x, y)
                     if i is None:
                         row.append('.')
                     else:
@@ -88,11 +93,10 @@ class Config(object):
             print ' '+''.join(row)
         return
 
-    def getdepth(self, loc):
-        (x,y) = loc
+    def getdepth(self, x, y):
         if y < 0:
             return MAX+1
-        i = self.board.getseg(loc)
+        i = self.board.getseg(x, y)
         if i is None:
             return 0
         else:
@@ -100,62 +104,96 @@ class Config(object):
 
     def getsegs(self, loc):
         (x,y) = loc
-        z = self.getdepth((x,y))
-        # ground block.
-        s0 = self.board.getseg((x,y-1))
-        z0 = self.getdepth((x,y-1))
-        assert z < z0, (self.depths, loc)
+        z = self.getdepth(x, y)
+        # platform block.
+        sp = self.board.getseg(x, y-1)
+        zp = self.getdepth(x, y-1)
+        assert z < zp, (x,y)
         r = []
         # front block.
-        sf = self.board.getseg((x,y))
-        if sf is not None and sf != s0 and z < z0-1:
-            r.append((sf, 0, z0-1))
+        sf = self.board.getseg(x, y)
+        if sf is not None and sf != sp and z < zp-1:
+            r.append((sf, 0, zp-1))
         # side block. (left)
-        sl = self.board.getseg((x-1,y))
-        zl = self.getdepth((x-1,y))
-        if sl is not None and sl != s0 and z < zl:
+        sl = self.board.getseg(x-1, y)
+        zl = self.getdepth(x-1, y)
+        if sl is not None and sl != sp and z < zl:
             r.append((sl, z+1, MAX))
         # side block. (right)
-        sr = self.board.getseg((x+1,y))
-        zr = self.getdepth((x+1,y))
-        if sr is not None and sr != s0 and z < zr:
+        sr = self.board.getseg(x+1, y)
+        zr = self.getdepth(x+1, y)
+        if sr is not None and sr != sp and z < zr:
             r.append((sr, z+1, MAX))
         return r
 
     def getlocs(self, loc):
         locs = set()
-        def expand(p):
+        def expand(x0, y0):
+            if x0 < 0 or self.board.width <= x0: return
+            p = (x0,y0)
             if p in locs: return
             locs.add(p)
-            (x0,y0) = p
-            z0 = self.getdepth((x0,y0))
-            z1 = self.getdepth((x0,y0-1))
-            for (dx,dy) in MOVES:
-                (x1,y1) = (x0+dx,y0+dy)
-                if x1 < 0 or self.board.width <= x1 or y1 < 0: continue
-                if 0 < dy:
-                    # jumping.
-                    if (self.getdepth((x1,y1)) < z0 and
-                        z0 <= self.getdepth((x1,y1-1))):
-                        expand((x1,y1))
-                else:
-                    # walking/falling.
-                    if (self.getdepth((x1,y1)) < z1 and
-                        z0 < self.getdepth((x1,y1-1))):
-                        expand((x1,y1))
-        expand(loc)
+            z0 = self.getdepth(x0, y0)
+            zp = self.getdepth(x0, y0-1)
+            assert z0 < zp, (x0,y0)
+            # check jumping.
+            if self.getdepth(x0, y0+1) < zp:
+                for dx in (-1,0,+1):
+                    x1 = x0+dx
+                    z = self.getdepth(x1, y0+1)
+                    if zp <= z: continue
+                    if max(z,z0-1) < self.getdepth(x1, y0):
+                        #print ' jump1', (x0,y0), (x1, y0+1)
+                        expand(x1, y0+1)
+                        continue
+            for dx in (-1,+1):
+                x1 = x0+dx
+                if self.getdepth(x1, y0+1) < zp:
+                    x2 = x1+dx
+                    z = self.getdepth(x2, y0+1)
+                    if zp <= z: continue
+                    if max(z,z0) < self.getdepth(x2, y0):
+                        #print ' jump2', (x0,y0), (x2, y0+1)
+                        expand(x2, y0+1)
+                        continue
+                    z = self.getdepth(x2, y0)
+                    if zp <= z: continue
+                    if max(z,z0) < self.getdepth(x2, y0-1):
+                        #print ' jump3', (x0,y0), (x2, y0)
+                        expand(x2, y0)
+            # check walking/falling.
+            for dx in (-1,+1):
+                x1 = x0+dx
+                z = self.getdepth(x1, y0)
+                if zp <= z: continue
+                for y1 in xrange(y0, -1, -1):
+                    if max(z,z0) < self.getdepth(x1, y1-1):
+                        #print ' walk/fall', (x0,y0), (x1, y1)
+                        expand(x1, y1)
+                        break
+            # check falling.
+            for dx in (-1,0,+1):
+                x1 = x0+dx
+                for y1 in xrange(y0-1, -1, -1):
+                    if zp < self.getdepth(x1, y1-1):
+                        #print ' fall', (x0,y0), (x1, y1)
+                        expand(x1, y1)
+                        break
+        (x,y) = loc
+        expand(x, y)
         return locs
 
-def solve_pushmo(board, startloc, verbose=False):
+def solve_pushmo(board, verbose=False):
     depths = tuple( 0 for _ in board.segments )
     queue = []
-    queue.append((None, depths, startloc))
+    queue.append((0, None, depths, board.start))
     states = {}
     solution = None
     while queue:
         queue.sort()
         prev = queue.pop(0)
-        (_, depths, loc0) = prev
+        (n, _, depths, loc0) = prev
+        n += 1
         if depths in states:
             locsets = states[depths]
         else:
@@ -167,14 +205,15 @@ def solve_pushmo(board, startloc, verbose=False):
                 break
         if found: continue
         config = Config(board, depths)
-        newlocs = config.getlocs(loc0)
         if verbose:
             print '-- Move %d --' % n
             config.show(loc0)
+        newlocs = config.getlocs(loc0)
+        if verbose:
             print ' Possible locations:', sorted(newlocs)
             print
         if board.goal in newlocs:
-            solution = (prev, depths, board.goal)
+            solution = (n, prev, depths, board.goal)
             break
         locsets.append(newlocs)
         for loc in newlocs:
@@ -182,27 +221,26 @@ def solve_pushmo(board, startloc, verbose=False):
                 for z in xrange(z0, z1+1):
                     d = depths[:i] + (z,) + depths[i+1:]
                     if d in states: continue
-                    queue.append((prev, d, loc))
+                    queue.append((n, prev, d, loc))
     r = []
     while solution is not None:
-        (prev, depths, loc) = solution
-        r.append((depths,loc))
+        (n, prev, depths, loc) = solution
+        r.append((n,depths,loc))
         solution = prev
     r.reverse()
     return r
 
 def main(argv):
     import fileinput
-    board = Board(list(fileinput.input()))
-    startloc = (0,0)
+    board = Board([ line.strip() for line in fileinput.input() ])
     print '-- Initial state --'
-    board.show(startloc)
+    board.show()
     print
-    steps = solve_pushmo(board, startloc)
+    steps = solve_pushmo(board)
     if not steps:
         print 'Unsolvable.'
     else:
-        for (i,(depths, loc)) in enumerate(steps):
+        for (i,depths,loc) in steps:
             config = Config(board, depths)
             print '-- Move %d --' % i
             config.show(loc)

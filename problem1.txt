@@ -1,5 +1,5 @@
 ...*..
 ...DD.
-..ECC.
+..CCC.
 .BBBB.
 @AAAA.

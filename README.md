@@ -19,7 +19,7 @@ Usage
 Options:
 
  * `-v`: verbose output.
- * `-m` max_depth: the maximum depth of push/pull. (default: 3)
+ * `-m max_depth`: the maximum depth of push/pull. (default: 3)
 
 File format:
 
@@ -29,10 +29,9 @@ File format:
     .BBBB.
     @AAAA.
 
- * . : blank space.
- * * : goal.
- * @ : start position.
- * A-Z : blocks.
+Note: Leave one blank at both sides of the level.
 
-Notice: Leave one blank at both sides of the level
-(otherwise the player can't move to the side of the blocks).
+ * `.` : blank space.
+ * `*` : goal.
+ * `@` : start position.
+ * `A`...`Z` : blocks.

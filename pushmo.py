@@ -228,6 +228,7 @@ def solve_pushmo(board, verbose=True, max_depth=3):
                     z1 = max_depth
                 for z in xrange(z0, z1+1):
                     d = depths[:i] + (z,) + depths[i+1:]
+                    if 2 <= min(d): continue # all blocks pulled out by 2 - pointless.
                     if d in states: continue
                     queue.append((n, prev, d, loc))
     r = []

@@ -2,15 +2,16 @@
 
 use std::char::CharExt;
 use std::io::File;
-use std::io::Lines;
 use std::io::BufferedReader;
 use std::collections::VecMap;
 use std::collections::HashMap;
 use std::char;
-use std::iter;
+use std::usize;
 use std::hash;
 use std::fmt;
 use std::os;
+
+const INF:usize = usize::MAX;
 
 // Point
 struct Point {
@@ -99,12 +100,12 @@ impl Board {
             for x in 0..self.width {
                 let x = x as i32;
                 let p = Point { x:x, y:y };
-                if (self.start == p) {
+                if self.start == p {
                     row.push('@');
-                } else if (self.goal == p) {
+                } else if self.goal == p {
                     row.push('*');
                 } else {
-                    match (self.getseg(x, y)) {
+                    match self.getseg(x, y) {
                         Some(i) => { row.push(self.segments[*i].name); }
                         None => { row.push('.'); }
                     }
@@ -114,7 +115,7 @@ impl Board {
         }
     }
     
-    fn load(&mut self, lines:Vec<String>) {
+    fn load(&mut self, lines:&Vec<String>) {
         let mut d:VecMap<usize> = VecMap::new();
         for (y,s) in lines.iter().enumerate() {
             let y = (lines.len()-y) as i32;
@@ -155,6 +156,12 @@ struct Config {
     depths: Vec<usize>,
 }
 
+struct SRange {
+    seg: usize,
+    z0: usize,
+    z1: usize,
+}
+
 impl Config {
     fn new(board:Board, depths:Vec<usize>) -> Config {
         Config {
@@ -163,19 +170,19 @@ impl Config {
         }
     }
 
-    fn show(self, loc:Point) {
+    fn show(&self, loc:&Point) {
         for y in 0..self.board.height {
             let y = (self.board.height-y) as i32;
             let mut row:String = String::new();
             for x in 0..self.board.width {
                 let x = x as i32;
                 let p = Point { x:x, y:y };
-                if p == loc {
+                if p == *loc {
                     row.push('@');
                 } else if p == self.board.goal {
                     row.push('*');
                 } else {
-                    match (self.board.getseg(x, y)) {
+                    match self.board.getseg(x, y) {
                         Some(i) => {
                             let c = char::from_u32(self.depths[*i] as u32);
                             row.push(c.expect("Invalid char"));
@@ -186,6 +193,64 @@ impl Config {
             }
             println!(" {}", row);
         }
+    }
+
+    fn getdepth(&self, x:i32, y:i32) -> usize {
+        if y < 0 {
+            INF
+        } else {
+            match self.board.getseg(x, y) {
+                Some(i) => { self.depths[*i] }
+                None => { 0 }
+            }
+        }
+    }
+
+    fn getsegs(&self, loc:&Point) -> Vec<SRange> {
+        let x = loc.x;
+        let y = loc.y;
+        let z = self.getdepth(x, y);
+        // platform block.
+        let sp = self.board.getseg(x, y-1);
+        let zp = self.getdepth(x, y-1);
+        let mut r = Vec::new();
+        // front block.
+        let sf = self.board.getseg(x, y);
+        match sf {
+            Some(i) => {
+                if sf != sp && z < zp-1 {
+                    if 0 < y {
+                        r.push(SRange { seg:*i, z0:0, z1:zp-1 });
+                    } else {
+                        r.push(SRange { seg:*i, z0:0, z1:-1 });
+                    }
+                }
+            }
+            None => {}
+        }
+        // side block. (left)
+        let sl = self.board.getseg(x-1, y);
+        let zl = self.getdepth(x-1, y);
+        match sl {
+            Some(i) => {
+                if sl != sp && z < zl {
+                    r.push(SRange { seg:*i, z0:z+1, z1:-1 });
+                }
+            }
+            None => {}
+        }
+        // side block. (right)
+        let sr = self.board.getseg(x+1, y);
+        let zr = self.getdepth(x+1, y);
+        match sr {
+            Some(i) => {
+                if sr != sp && z < zr {
+                    r.push(SRange { seg:*i, z0:z+1, z1:-1 });
+                }
+            }
+            None => {}
+        }
+        return r;
     }
 
 }
@@ -207,6 +272,6 @@ fn main() {
             Err(e) => panic!("read error: {}", e),
         }
     }
-    board.load(lines);
+    board.load(&lines);
     board.show();
 }

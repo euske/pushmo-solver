@@ -259,7 +259,7 @@ impl Config {
         return r;
     }
 
-    fn getlocs(&self, mut locs:&HashSet<Point>, x0:i32, y0:i32) {
+    fn getlocs(&self, locs:&mut HashSet<Point>, x0:i32, y0:i32) {
         if x0 < 0 || self.board.width < x0 as usize {
             return;
         }

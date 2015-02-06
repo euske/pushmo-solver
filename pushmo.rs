@@ -5,13 +5,19 @@ use std::io::File;
 use std::io::BufferedReader;
 use std::collections::VecMap;
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::char;
+use std::iter;
 use std::usize;
 use std::hash;
 use std::fmt;
 use std::os;
 
 const INF:usize = usize::MAX;
+
+fn max(x:usize, y:usize) -> usize {
+    if (x < y) { y } else { x }
+}
 
 // Point
 struct Point {
@@ -253,6 +259,83 @@ impl Config {
         return r;
     }
 
+    fn getlocs(&self, mut locs:&HashSet<Point>, x0:i32, y0:i32) {
+        if x0 < 0 || self.board.width < x0 as usize {
+            return;
+        }
+        let p = Point { x:x0, y:y0 };
+        if locs.contains(&p) {
+            return;
+        }
+        locs.insert(p);
+        let z0 = self.getdepth(x0, y0);
+        let zp = self.getdepth(x0, y0-1);
+        // check jumping.
+        if self.getdepth(x0, y0+1) < zp {
+            for dx in [-1,0,1].iter() {
+                let x1 = x0+*dx;
+                let z = self.getdepth(x1, y0+1);
+                if zp <= z { continue; }
+                if max(z,z0-1) < self.getdepth(x1, y0) {
+                    //print ' jump1', (x0,y0), (x1, y0+1);
+                    self.getlocs(locs, x1, y0+1);
+                    continue
+                }
+            }
+        }
+        for dx in [-1,1].iter() {
+            let x1 = x0+*dx;
+            if self.getdepth(x1, y0+1) < zp {
+                let x2 = x1+*dx;
+                let z1 = self.getdepth(x2, y0+1);
+                if zp <= z1 { continue; }
+                if max(z1,z0) < self.getdepth(x2, y0) {
+                    //print ' jump2', (x0,y0), (x2, y0+1);
+                    self.getlocs(locs, x2, y0+1);
+                    continue;
+                }
+                let z2 = self.getdepth(x2, y0);
+                if zp <= z2 { continue; }
+                if max(z2,z0) < self.getdepth(x2, y0-1) {
+                    //print ' jump3', (x0,y0), (x2, y0);
+                    self.getlocs(locs, x2, y0);
+                    continue;
+                }
+            }
+        }
+        // check walking/falling.
+        for dx in [-1,1].iter() {
+            let x1 = x0+*dx;
+            let z = self.getdepth(x1, y0);
+            if zp <= z { continue; }
+            for dy in iter::range_inclusive(0, y0) {
+                let y1 = y0-dy;
+                if max(z,z0) < self.getdepth(x1, y1-1) {
+                    //print ' walk/fall', (x0,y0), (x1, y1);
+                    self.getlocs(locs, x1, y1);
+                    break;
+                }
+            }
+        }
+        // check falling.
+        for dx in [-1,0,1].iter() {
+            let x1 = x0+*dx;
+            let z = self.getdepth(x1, y0);
+            let mut z = max(z, zp);
+            for dy in iter::range_inclusive(0, y0) {
+                let y1 = y0-dy;
+                let z1 = self.getdepth(x1, y1-1);
+                if z < z1 {
+                    //print ' fall', (x0,y0), (x1, y1), z,z1;
+                    self.getlocs(locs, x1, y1);
+                    break;
+                }
+                z = max(z,z1);
+            }
+        }
+        return;
+    }
+    
 }
 
 fn main() {

@@ -1,11 +1,8 @@
 // pushmo.rs
 
-use std::char::CharExt;
-use std::io::File;
-use std::io::BufferedReader;
-use std::collections::VecMap;
-use std::collections::HashMap;
-use std::collections::HashSet;
+use std::io::{File, BufferedReader};
+use std::collections::{VecMap, HashMap, HashSet};
+use std::collections;
 use std::char;
 use std::iter;
 use std::usize;
@@ -15,9 +12,18 @@ use std::os;
 
 const INF:usize = usize::MAX;
 
+// misc. functions
 fn max(x:usize, y:usize) -> usize {
     if (x < y) { y } else { x }
 }
+fn min(a:&[usize]) -> usize {
+    let mut m = usize::MAX;
+    for v in a.iter() {
+        if *v < m { m = *v; }
+    }
+    return m;
+}
+
 
 // Point
 struct Point {
@@ -51,6 +57,19 @@ impl<H:hash::Hasher+hash::Writer> hash::Hash<H> for Point {
 }
 
 impl Eq for Point {
+}
+
+fn fmtpts(pts:&HashSet<Point>) -> String {
+    let mut s = String::new();
+    let mut n = 0;
+    s.push_str("[");
+    for i in pts.iter() {
+        if 0 < n { s.push_str(", "); }
+        s.push_str(format!("{}", *i).as_slice());
+        n += 1;
+    }
+    s.push_str("]");
+    return s;
 }
 
 // Segment
@@ -112,7 +131,7 @@ impl Board {
                     row.push('*');
                 } else {
                     match self.getseg(x, y) {
-                        Some(i) => { row.push(self.segments[*i].name); }
+                        Some(&i) => { row.push(self.segments[i].name); }
                         None => { row.push('.'); }
                     }
                 }
@@ -130,14 +149,14 @@ impl Board {
                 let x = x as i32;
                 let p = Point { x:x, y:y };
                 //println!("{}={}", p, c);
-                if CharExt::is_whitespace(c) { continue; }
+                if char::CharExt::is_whitespace(c) { continue; }
                 if c == '@' {
                     self.start = p.clone();
                 } else if c == '*' {
                     self.goal = p.clone();
-                } else if CharExt::is_alphanumeric(c) {
+                } else if char::CharExt::is_alphanumeric(c) {
                     let i = match d.get(&(c as usize)) {
-                        Some(v) => { *v }
+                        Some(&v) => { v }
                         None => {
                             let n = self.segments.len();
                             self.segments.push(Segment::new(c));
@@ -157,9 +176,24 @@ impl Board {
 }
 
 // Config
-struct Config {
-    board: Board,
+struct Config<'a> {
+    board: &'a Board,
     depths: Vec<usize>,
+}
+
+impl<'a> PartialEq for Config<'a> {
+    fn eq(&self, other:&Config) -> bool {
+        self.depths == other.depths
+    }
+}
+
+impl<'a, H:hash::Hasher+hash::Writer> hash::Hash<H> for Config<'a> {
+    fn hash(&self, state:&mut H) {
+        self.depths.hash(state);
+    }
+}
+
+impl<'a> Eq for Config<'a> {
 }
 
 struct SRange {
@@ -168,8 +202,16 @@ struct SRange {
     z1: usize,
 }
 
-impl Config {
-    fn new(board:Board, depths:Vec<usize>) -> Config {
+impl <'a>Config<'a> {
+    fn init(board:&Board) -> Config {
+        let mut depths = Vec::new();
+        for i in 0..(board.segments.len()) {
+            depths.push(0);
+        }
+        return Config::new(board, depths);
+    }
+    
+    fn new(board:&Board, depths:Vec<usize>) -> Config {
         Config {
             board: board,
             depths: depths,
@@ -189,8 +231,8 @@ impl Config {
                     row.push('*');
                 } else {
                     match self.board.getseg(x, y) {
-                        Some(i) => {
-                            let c = char::from_u32(self.depths[*i] as u32);
+                        Some(&i) => {
+                            let c = char::from_u32(self.depths[i] as u32);
                             row.push(c.expect("Invalid char"));
                         }
                         None => { row.push('.'); }
@@ -206,7 +248,7 @@ impl Config {
             INF
         } else {
             match self.board.getseg(x, y) {
-                Some(i) => { self.depths[*i] }
+                Some(&i) => { self.depths[i] }
                 None => { 0 }
             }
         }
@@ -223,12 +265,12 @@ impl Config {
         // front block.
         let sf = self.board.getseg(x, y);
         match sf {
-            Some(i) => {
+            Some(&i) => {
                 if sf != sp && z < zp-1 {
                     if 0 < y {
-                        r.push(SRange { seg:*i, z0:0, z1:zp-1 });
+                        r.push(SRange { seg:i, z0:0, z1:zp-1 });
                     } else {
-                        r.push(SRange { seg:*i, z0:0, z1:-1 });
+                        r.push(SRange { seg:i, z0:0, z1:-1 });
                     }
                 }
             }
@@ -238,9 +280,9 @@ impl Config {
         let sl = self.board.getseg(x-1, y);
         let zl = self.getdepth(x-1, y);
         match sl {
-            Some(i) => {
+            Some(&i) => {
                 if sl != sp && z < zl {
-                    r.push(SRange { seg:*i, z0:z+1, z1:-1 });
+                    r.push(SRange { seg:i, z0:z+1, z1:-1 });
                 }
             }
             None => {}
@@ -249,9 +291,9 @@ impl Config {
         let sr = self.board.getseg(x+1, y);
         let zr = self.getdepth(x+1, y);
         match sr {
-            Some(i) => {
+            Some(&i) => {
                 if sr != sp && z < zr {
-                    r.push(SRange { seg:*i, z0:z+1, z1:-1 });
+                    r.push(SRange { seg:i, z0:z+1, z1:-1 });
                 }
             }
             None => {}
@@ -336,6 +378,105 @@ impl Config {
         return;
     }
     
+}
+
+struct State<'a> {
+    n: usize,
+    prev: Option<Box<State<'a>>>,
+    config: Config<'a>,
+    loc: Point,
+}
+
+fn solve_pushmo(board:&Board, verbose:bool, max_depth:usize) -> Vec<State> {
+    let mut config = Config::init(board);
+    let mut queue = Vec::new();
+    queue.push(State { n:0, prev:None, config:config, loc:board.start });
+    let mut states:HashMap<&Config, Vec<HashSet<Point>>> = HashMap::new();
+    let mut solution = None;
+    while (0 < queue.len()) {
+        queue.sort_by(|a, b| a.n.cmp(&b.n));
+        let prev = &queue.remove(0);
+        let n = prev.n+1;
+        let mut locsets = match states.get(&prev.config) {
+            Some(sets) => { sets }
+            None => {
+                let empty = Vec::new();
+                states.insert(&prev.config, empty);
+                &empty
+            }
+        };
+        let mut found = false;
+        for locs in locsets.iter() {
+            if locs.contains(&prev.loc) {
+                found = true;
+                break;
+            }
+        }
+        if found { continue; }
+        config = prev.config;
+        if verbose {
+            print!("-- Move {} --", n);
+            config.show(&prev.loc)
+        }
+        let mut newlocs = HashSet::new();
+        config.getlocs(&mut newlocs, prev.loc.x, prev.loc.y);
+        if verbose {
+            print!(" Possible locations: {}", fmtpts(&newlocs));
+        }
+        if newlocs.contains(&board.goal) {
+            solution = Some(State {
+                n:n,
+                prev:Some(Box::new(*prev)),
+                config:config,
+                loc:board.goal
+            });
+            break;
+        }
+        for loc in newlocs.iter() {
+            for srange in config.getsegs(loc).iter() {
+                let i = srange.seg;
+                let z1 = if (0 <= srange.z1) { srange.z1 } else { max_depth };
+                let depths = config.depths.as_slice();
+                for z in srange.z0..z1+1 {
+                    let mut d = Vec::new();
+                    d.push_all(&depths[..i]);
+                    d.push(z);
+                    d.push_all(&depths[i+1..]);
+                    if 2 <= min(d.as_slice()) {
+                        // all blocks pulled out by 2 - pointless.
+                        continue;
+                    }
+                    let next = Config { board:board, depths:d };
+                    if states.contains_key(&next) { continue; }
+                    queue.push(State {
+                        n:n,
+                        prev:Some(Box::new(*prev)),
+                        config:next,
+                        loc:*loc
+                    });
+                }
+            }
+        }
+        locsets.push(newlocs);
+    }
+    let mut r = Vec::new();
+    while solution.is_some() {
+        match solution {
+            Some(state) => {
+                r.insert(0, state);
+                match state.prev {
+                    Some(prev) => {
+                        solution = Some(*prev);
+                    }
+                    _ => {
+                        solution = None;
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    return r;
 }
 
 fn main() {

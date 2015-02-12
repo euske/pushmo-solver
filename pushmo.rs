@@ -2,23 +2,21 @@
 
 use std::io::{File, BufferedReader};
 use std::collections::{VecMap, HashMap, HashSet};
-use std::collections;
 use std::rc::Rc;
 use std::char;
 use std::iter;
-use std::usize;
 use std::hash;
 use std::fmt;
 use std::os;
 
-const INF:usize = usize::MAX;
+const INF:isize = std::isize::MAX;
 
 // misc. functions
-fn max(x:usize, y:usize) -> usize {
-    if (x < y) { y } else { x }
+fn max(x:isize, y:isize) -> isize {
+    if x < y { y } else { x }
 }
-fn min(a:&[usize]) -> usize {
-    let mut m = usize::MAX;
+fn min(a:&[isize]) -> isize {
+    let mut m = std::isize::MAX;
     for v in a.iter() {
         if *v < m { m = *v; }
     }
@@ -28,8 +26,8 @@ fn min(a:&[usize]) -> usize {
 
 // Point
 struct Point {
-    x: i32,
-    y: i32,
+    x: isize,
+    y: isize,
 }
 
 impl fmt::String for Point {
@@ -114,17 +112,17 @@ impl Board {
         }
     }
 
-    fn getseg(&self, x:i32, y:i32) -> Option<&usize> {
+    fn getseg(&self, x:isize, y:isize) -> Option<&usize> {
         let p = Point { x:x, y:y };
         self.loc2seg.get(&p)
     }
     
     fn show(&self) {
         for y in 0..self.height {
-            let y = (self.height-y) as i32;
+            let y = (self.height-y) as isize;
             let mut row:String = String::new();
             for x in 0..self.width {
-                let x = x as i32;
+                let x = x as isize;
                 let p = Point { x:x, y:y };
                 if self.start == p {
                     row.push('@');
@@ -144,10 +142,10 @@ impl Board {
     fn load(&mut self, lines:&Vec<String>) {
         let mut d:VecMap<usize> = VecMap::new();
         for (y,s) in lines.iter().enumerate() {
-            let y = (lines.len()-y) as i32;
+            let y = (lines.len()-y) as isize;
             let mut width = 0;
             for (x,c) in s.as_slice().chars().enumerate() {
-                let x = x as i32;
+                let x = x as isize;
                 let p = Point { x:x, y:y };
                 //println!("{}={}", p, c);
                 if char::CharExt::is_whitespace(c) { continue; }
@@ -179,14 +177,14 @@ impl Board {
 // SRange
 struct SRange {
     seg: usize,
-    z0: usize,
-    z1: usize,
+    z0: isize,
+    z1: isize,
 }
 
 // Config
 struct Config<'a> {
     board: &'a Board,
-    depths: Vec<usize>,
+    depths: Vec<isize>,
 }
 
 impl<'a> PartialEq for Config<'a> {
@@ -213,13 +211,13 @@ impl<'a> Clone for Config<'a> {
 impl <'a>Config<'a> {
     fn init(board:&Board) -> Config {
         let mut depths = Vec::new();
-        for i in 0..(board.segments.len()) {
+        for _ in 0..(board.segments.len()) {
             depths.push(0);
         }
         return Config::new(board, depths);
     }
     
-    fn new(board:&Board, depths:Vec<usize>) -> Config {
+    fn new(board:&Board, depths:Vec<isize>) -> Config {
         Config {
             board: board,
             depths: depths,
@@ -228,10 +226,10 @@ impl <'a>Config<'a> {
 
     fn show(&self, loc:&Point) {
         for y in 0..self.board.height {
-            let y = (self.board.height-y) as i32;
+            let y = (self.board.height-y) as isize;
             let mut row:String = String::new();
             for x in 0..self.board.width {
-                let x = x as i32;
+                let x = x as isize;
                 let p = Point { x:x, y:y };
                 if p == *loc {
                     row.push('@');
@@ -251,7 +249,7 @@ impl <'a>Config<'a> {
         }
     }
 
-    fn getdepth(&self, x:i32, y:i32) -> usize {
+    fn getdepth(&self, x:isize, y:isize) -> isize {
         if y < 0 {
             INF
         } else {
@@ -309,7 +307,7 @@ impl <'a>Config<'a> {
         return r;
     }
 
-    fn getlocs(&self, locs:&mut HashSet<Point>, x0:i32, y0:i32) {
+    fn getlocs(&self, locs:&mut HashSet<Point>, x0:isize, y0:isize) {
         if x0 < 0 || self.board.width < x0 as usize {
             return;
         }
@@ -401,7 +399,7 @@ struct Step<'a> {
     loc: Point,
 }
 
-fn solve_pushmo(board:&Board, verbose:bool, max_depth:usize) -> Vec<Step> {
+fn solve_pushmo(board:&Board, verbose:bool, max_depth:isize) -> Option<Vec<Step>> {
     let mut queue:Vec<State> = Vec::new();
     queue.push(State {
         n:0,
@@ -411,7 +409,7 @@ fn solve_pushmo(board:&Board, verbose:bool, max_depth:usize) -> Vec<Step> {
     });
     let mut states:HashMap<Config, Vec<HashSet<Point>>> = HashMap::new();
     let mut solution:Option<Rc<State>> = None;
-    while (0 < queue.len()) {
+    while 0 < queue.len() {
         queue.sort_by(|a, b| a.n.cmp(&b.n));
         let state = queue.remove(0);
         let n = state.n+1;
@@ -436,14 +434,14 @@ fn solve_pushmo(board:&Board, verbose:bool, max_depth:usize) -> Vec<Step> {
                 if visited { continue; }
             }
             if verbose {
-                print!("-- Move {} --", n);
+                println!("-- Move {} --", n);
                 state.config.show(&state.loc)
             }
             state.config.getlocs(&mut newlocs, state.loc.x, state.loc.y);
             locsets.push(newlocs.clone());
         }
         if verbose {
-            print!(" Possible locations: {}", fmtpts(&newlocs));
+            println!(" Possible locations: {}", fmtpts(&newlocs));
         }
         let config = state.config.clone();
         let prev = Rc::new(state);
@@ -459,7 +457,7 @@ fn solve_pushmo(board:&Board, verbose:bool, max_depth:usize) -> Vec<Step> {
         for loc in newlocs.iter() {
             for srange in config.getsegs(loc).iter() {
                 let i = srange.seg;
-                let z1 = if (0 <= srange.z1) { srange.z1 } else { max_depth };
+                let z1 = if 0 <= srange.z1 { srange.z1 } else { max_depth };
                 let depths = config.depths.as_slice();
                 for z in srange.z0..z1+1 {
                     let mut d = Vec::new();
@@ -483,23 +481,26 @@ fn solve_pushmo(board:&Board, verbose:bool, max_depth:usize) -> Vec<Step> {
         }
     }
     // move every value to a vec.
-    let mut r = Vec::new();
-    let mut head = &solution;
-    while head.is_some() {
-        match *head {
-            Some(ref state) => {
-                let step = Step {
-                    n:state.n,
-                    config:state.config.clone(),
-                    loc:state.loc.clone(),
-                };
-                r.insert(0, step);
-                head = &state.prev;
+    if solution.is_some() {
+        let mut head = &solution;
+        let mut r = Vec::new();
+        while head.is_some() {
+            match *head {
+                Some(ref state) => {
+                    let step = Step {
+                        n:state.n,
+                        config:state.config.clone(),
+                        loc:state.loc.clone(),
+                    };
+                    r.insert(0, step);
+                    head = &state.prev;
+                }
+                _ => {}
             }
-            _ => {}
         }
+        return Some(r);
     }
-    return r;
+    return None;
 }
 
 fn main() {
@@ -520,5 +521,19 @@ fn main() {
         }
     }
     board.load(&lines);
+    println!("-- Initial state --");
     board.show();
+    println!("");
+    match solve_pushmo(&board, true, 3) {
+        None => { println!("Unsolvable."); }
+        Some(steps) => {
+            for step in steps.iter() {
+                println!("-- Move {} --", step.n);
+                step.config.show(&step.loc);
+                println!("");
+            }
+            println!("Solved in {} steps.", steps.len());
+        }
+    }
+    
 }

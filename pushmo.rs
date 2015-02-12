@@ -3,6 +3,7 @@
 use std::io::{File, BufferedReader};
 use std::collections::{VecMap, HashMap, HashSet};
 use std::collections;
+use std::rc::Rc;
 use std::char;
 use std::iter;
 use std::usize;
@@ -175,6 +176,13 @@ impl Board {
     }
 }
 
+// SRange
+struct SRange {
+    seg: usize,
+    z0: usize,
+    z1: usize,
+}
+
 // Config
 struct Config<'a> {
     board: &'a Board,
@@ -196,10 +204,10 @@ impl<'a, H:hash::Hasher+hash::Writer> hash::Hash<H> for Config<'a> {
 impl<'a> Eq for Config<'a> {
 }
 
-struct SRange {
-    seg: usize,
-    z0: usize,
-    z1: usize,
+impl<'a> Clone for Config<'a> {
+    fn clone(&self) -> Self {
+        Config { board:self.board, depths:self.depths.clone() }
+    }
 }
 
 impl <'a>Config<'a> {
@@ -382,54 +390,70 @@ impl <'a>Config<'a> {
 
 struct State<'a> {
     n: usize,
-    prev: Option<Box<State<'a>>>,
+    prev: Option<Rc<State<'a>>>,
     config: Config<'a>,
     loc: Point,
 }
 
-fn solve_pushmo(board:&Board, verbose:bool, max_depth:usize) -> Vec<State> {
-    let mut config = Config::init(board);
-    let mut queue = Vec::new();
-    queue.push(State { n:0, prev:None, config:config, loc:board.start });
-    let mut states:HashMap<&Config, Vec<HashSet<Point>>> = HashMap::new();
-    let mut solution = None;
+struct Step<'a> {
+    n: usize,
+    config: Config<'a>,
+    loc: Point,
+}
+
+fn solve_pushmo(board:&Board, verbose:bool, max_depth:usize) -> Vec<Step> {
+    let mut queue:Vec<State> = Vec::new();
+    queue.push(State {
+        n:0,
+        prev:None,
+        config:Config::init(board),
+        loc:board.start.clone(),
+    });
+    let mut states:HashMap<Config, Vec<HashSet<Point>>> = HashMap::new();
+    let mut solution:Option<Rc<State>> = None;
     while (0 < queue.len()) {
         queue.sort_by(|a, b| a.n.cmp(&b.n));
-        let prev = &queue.remove(0);
-        let n = prev.n+1;
-        let mut locsets = match states.get(&prev.config) {
-            Some(sets) => { sets }
-            None => {
-                let empty = Vec::new();
-                states.insert(&prev.config, empty);
-                &empty
-            }
-        };
-        let mut found = false;
-        for locs in locsets.iter() {
-            if locs.contains(&prev.loc) {
-                found = true;
-                break;
-            }
-        }
-        if found { continue; }
-        config = prev.config;
-        if verbose {
-            print!("-- Move {} --", n);
-            config.show(&prev.loc)
+        let state = queue.remove(0);
+        let n = state.n+1;
+        if states.get(&state.config).is_none() {
+            states.insert(state.config.clone(), Vec::new());
         }
         let mut newlocs = HashSet::new();
-        config.getlocs(&mut newlocs, prev.loc.x, prev.loc.y);
+        {
+            let mut locsets;
+            match states.get_mut(&state.config) {
+                Some(sets) => { locsets = sets; }
+                None => { continue; }
+            }
+            {
+                let mut visited = false;
+                for locs in locsets.iter() {
+                    if locs.contains(&state.loc) {
+                        visited = true;
+                        break;
+                    }
+                }
+                if visited { continue; }
+            }
+            if verbose {
+                print!("-- Move {} --", n);
+                state.config.show(&state.loc)
+            }
+            state.config.getlocs(&mut newlocs, state.loc.x, state.loc.y);
+            locsets.push(newlocs.clone());
+        }
         if verbose {
             print!(" Possible locations: {}", fmtpts(&newlocs));
         }
+        let config = state.config.clone();
+        let prev = Rc::new(state);
         if newlocs.contains(&board.goal) {
-            solution = Some(State {
+            solution = Some(Rc::new(State {
                 n:n,
-                prev:Some(Box::new(*prev)),
-                config:config,
-                loc:board.goal
-            });
+                prev:Some(prev.clone()),
+                config:config.clone(),
+                loc:board.goal.clone(),
+            }));
             break;
         }
         for loc in newlocs.iter() {
@@ -450,28 +474,27 @@ fn solve_pushmo(board:&Board, verbose:bool, max_depth:usize) -> Vec<State> {
                     if states.contains_key(&next) { continue; }
                     queue.push(State {
                         n:n,
-                        prev:Some(Box::new(*prev)),
+                        prev:Some(prev.clone()),
                         config:next,
-                        loc:*loc
+                        loc:loc.clone(),
                     });
                 }
             }
         }
-        locsets.push(newlocs);
     }
+    // move every value to a vec.
     let mut r = Vec::new();
-    while solution.is_some() {
-        match solution {
-            Some(state) => {
-                r.insert(0, state);
-                match state.prev {
-                    Some(prev) => {
-                        solution = Some(*prev);
-                    }
-                    _ => {
-                        solution = None;
-                    }
-                }
+    let mut head = &solution;
+    while head.is_some() {
+        match *head {
+            Some(ref state) => {
+                let step = Step {
+                    n:state.n,
+                    config:state.config.clone(),
+                    loc:state.loc.clone(),
+                };
+                r.insert(0, step);
+                head = &state.prev;
             }
             _ => {}
         }

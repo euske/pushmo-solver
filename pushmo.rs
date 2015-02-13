@@ -4,7 +4,6 @@ use std::io::{File, BufferedReader};
 use std::collections::{VecMap, HashMap, HashSet};
 use std::rc::Rc;
 use std::char;
-use std::iter;
 use std::hash;
 use std::fmt;
 use std::os;
@@ -118,7 +117,7 @@ impl Board {
     }
     
     fn show(&self) {
-        for y in 0..self.height {
+        for y in 0..(self.height+1) {
             let y = (self.height-y) as isize;
             let mut row:String = String::new();
             for x in 0..self.width {
@@ -142,7 +141,7 @@ impl Board {
     fn load(&mut self, lines:&Vec<String>) {
         let mut d:VecMap<usize> = VecMap::new();
         for (y,s) in lines.iter().enumerate() {
-            let y = (lines.len()-y) as isize;
+            let y = (lines.len()-1-y) as isize;
             let mut width = 0;
             for (x,c) in s.as_slice().chars().enumerate() {
                 let x = x as isize;
@@ -225,7 +224,7 @@ impl <'a>Config<'a> {
     }
 
     fn show(&self, loc:&Point) {
-        for y in 0..self.board.height {
+        for y in 0..(self.board.height+1) {
             let y = (self.board.height-y) as isize;
             let mut row:String = String::new();
             for x in 0..self.board.width {
@@ -238,8 +237,8 @@ impl <'a>Config<'a> {
                 } else {
                     match self.board.getseg(x, y) {
                         Some(&i) => {
-                            let c = char::from_u32(self.depths[i] as u32);
-                            row.push(c.expect("Invalid char"));
+                            let s = format!("{}", self.depths[i]);
+                            row.push_str(s.as_slice());
                         }
                         None => { row.push('.'); }
                     }
@@ -308,7 +307,7 @@ impl <'a>Config<'a> {
     }
 
     fn getlocs(&self, locs:&mut HashSet<Point>, x0:isize, y0:isize) {
-        if x0 < 0 || self.board.width < x0 as usize {
+        if x0 < 0 || self.board.width <= x0 as usize {
             return;
         }
         let p = Point { x:x0, y:y0 };
@@ -320,61 +319,62 @@ impl <'a>Config<'a> {
         let zp = self.getdepth(x0, y0-1);
         // check jumping.
         if self.getdepth(x0, y0+1) < zp {
-            for dx in [-1,0,1].iter() {
-                let x1 = x0+*dx;
+            for &dx in [-1,0,1].iter() {
+                let x1 = x0+dx;
                 let z = self.getdepth(x1, y0+1);
                 if zp <= z { continue; }
                 if max(z,z0-1) < self.getdepth(x1, y0) {
-                    //print ' jump1', (x0,y0), (x1, y0+1);
+                    //println!(" jump1 ({},{}), ({},{})", x0,y0, x1,y0+1);
                     self.getlocs(locs, x1, y0+1);
                     continue
                 }
             }
         }
-        for dx in [-1,1].iter() {
-            let x1 = x0+*dx;
+        for &dx in [-1,1].iter() {
+            let x1 = x0+dx;
             if self.getdepth(x1, y0+1) < zp {
-                let x2 = x1+*dx;
+                let x2 = x1+dx;
                 let z1 = self.getdepth(x2, y0+1);
                 if zp <= z1 { continue; }
                 if max(z1,z0) < self.getdepth(x2, y0) {
-                    //print ' jump2', (x0,y0), (x2, y0+1);
+                    //println!(" jump2 ({},{}), ({},{})", x0,y0, x2,y0+1);
                     self.getlocs(locs, x2, y0+1);
                     continue;
                 }
                 let z2 = self.getdepth(x2, y0);
                 if zp <= z2 { continue; }
                 if max(z2,z0) < self.getdepth(x2, y0-1) {
-                    //print ' jump3', (x0,y0), (x2, y0);
+                    //println!(" jump3 ({},{}), ({},{})", x0,y0, x2,y0);
                     self.getlocs(locs, x2, y0);
                     continue;
                 }
             }
         }
         // check walking/falling.
-        for dx in [-1,1].iter() {
-            let x1 = x0+*dx;
+        for &dx in [-1,1].iter() {
+            let x1 = x0+dx;
             let z = self.getdepth(x1, y0);
             if zp <= z { continue; }
-            for dy in iter::range_inclusive(0, y0) {
+            for dy in 0..(y0+1) {
                 let y1 = y0-dy;
                 if max(z,z0) < self.getdepth(x1, y1-1) {
-                    //print ' walk/fall', (x0,y0), (x1, y1);
+                    //println!(" walk/fall ({},{}), ({},{})", x0,y0, x1,y1);
                     self.getlocs(locs, x1, y1);
                     break;
                 }
             }
         }
         // check falling.
-        for dx in [-1,0,1].iter() {
-            let x1 = x0+*dx;
-            let z = self.getdepth(x1, y0);
-            let mut z = max(z, zp);
-            for dy in iter::range_inclusive(0, y0) {
+        for &dx in [-1,0,1].iter() {
+            let x1 = x0+dx;
+            let mut z = self.getdepth(x1, y0);
+            z = max(z, zp);
+            for dy in 0..(y0+1) {
                 let y1 = y0-dy;
                 let z1 = self.getdepth(x1, y1-1);
+                //println!(" {}, {}, {}",x1,y1-1,z);
                 if z < z1 {
-                    //print ' fall', (x0,y0), (x1, y1), z,z1;
+                    //println!(" fall ({},{}), ({},{}) {} {}", x0,y0, x1,y1, z,z1);
                     self.getlocs(locs, x1, y1);
                     break;
                 }
@@ -442,6 +442,7 @@ fn solve_pushmo(board:&Board, verbose:bool, max_depth:isize) -> Option<Vec<Step>
         }
         if verbose {
             println!(" Possible locations: {}", fmtpts(&newlocs));
+            println!("");
         }
         let config = state.config.clone();
         let prev = Rc::new(state);
@@ -459,7 +460,7 @@ fn solve_pushmo(board:&Board, verbose:bool, max_depth:isize) -> Option<Vec<Step>
                 let i = srange.seg;
                 let z1 = if 0 <= srange.z1 { srange.z1 } else { max_depth };
                 let depths = config.depths.as_slice();
-                for z in srange.z0..z1+1 {
+                for z in (srange.z0)..(z1+1) {
                     let mut d = Vec::new();
                     d.push_all(&depths[..i]);
                     d.push(z);

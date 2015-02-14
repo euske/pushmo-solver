@@ -505,36 +505,57 @@ fn solve_pushmo(board:&Board, verbose:bool, max_depth:isize) -> Option<Vec<Step>
 }
 
 fn main() {
-    let args = os::args();
-    let pathname = args[1].clone();
-    let path = Path::new(pathname.into_bytes());
-    let file = match File::open(&path) {
-        Ok(f) => f,
-        Err(e) => panic!("file error: {}", e),
-    };
-    let mut reader = BufferedReader::new(file);
-    let mut board = Board::new();
-    let mut lines = Vec::new();
-    for line in reader.lines() {
-        match line {
-            Ok(s) => { lines.push(s); }
-            Err(e) => panic!("read error: {}", e),
-        }
-    }
-    board.load(&lines);
-    println!("-- Initial state --");
-    board.show();
-    println!("");
-    match solve_pushmo(&board, true, 3) {
-        None => { println!("Unsolvable."); }
-        Some(steps) => {
-            for step in steps.iter() {
-                println!("-- Move {} --", step.n);
-                step.config.show(&step.loc);
-                println!("");
+    let mut files = Vec::new();
+    let mut verbose = false;
+    let mut max_depth = 3;
+    {
+        let args = os::args();
+        let mut i = 1;
+        while i < args.len() {
+            let arg = &args[i];
+            if arg.starts_with("-v") {
+                verbose = true;
+            } else if arg.starts_with("-m") {
+                i += 1;
+                match args[i].parse::<isize>() {
+                    Some(x) => { max_depth = x; }
+                    _ => {}
+                };
+            } else {
+                files.push(arg.clone());
             }
-            println!("Solved in {} steps.", steps.len());
+            i += 1;
         }
     }
-    
+    for file in files.iter() {
+        let path = Path::new(file.clone().into_bytes());
+        let file = match File::open(&path) {
+            Ok(f) => f,
+            Err(e) => panic!("file error: {}", e),
+        };
+        let mut reader = BufferedReader::new(file);
+        let mut board = Board::new();
+        let mut lines = Vec::new();
+        for line in reader.lines() {
+            match line {
+                Ok(s) => { lines.push(s); }
+                Err(e) => panic!("read error: {}", e),
+            }
+        }
+        board.load(&lines);
+        println!("-- Initial state --");
+        board.show();
+        println!("");
+        match solve_pushmo(&board, verbose, max_depth) {
+            None => { println!("Unsolvable."); }
+            Some(steps) => {
+                for step in steps.iter() {
+                    println!("-- Move {} --", step.n);
+                    step.config.show(&step.loc);
+                    println!("");
+                }
+                println!("Solved in {} steps.", steps.len());
+            }
+        }
+    }    
 }

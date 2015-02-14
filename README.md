@@ -1,7 +1,7 @@
 Pushmo Solver
 -------------
 
-This is a Python script that solves simple Pushmo levels.
+This is a Python/Rust script that solves simple Pushmo levels.
 
  * Jumping/falling search is limited.
  * Ladders/switches are not supported yet.
@@ -14,7 +14,12 @@ The algorithm complexity: O(4^N * M)
 Usage
 -----
 
+    (Python)
     $ python pushmo.py [-v] [-m max_depth] input.txt
+    
+    (Rust)
+    $ rustc pushmo.rs
+    $ ./pushmo [-v] [-m max_depth] input.txt
 
 Options:
 

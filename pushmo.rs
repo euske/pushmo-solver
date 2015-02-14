@@ -2,6 +2,7 @@
 
 use std::io::{File, BufferedReader};
 use std::collections::{VecMap, HashMap, HashSet};
+use std::collections::hash_map::Entry;
 use std::rc::Rc;
 use std::char;
 use std::hash;
@@ -413,16 +414,12 @@ fn solve_pushmo(board:&Board, verbose:bool, max_depth:isize) -> Option<Vec<Step>
         queue.sort_by(|a, b| a.n.cmp(&b.n));
         let state = queue.remove(0);
         let n = state.n+1;
-        if states.get(&state.config).is_none() {
-            states.insert(state.config.clone(), Vec::new());
-        }
         let mut newlocs = HashSet::new();
         {
-            let mut locsets;
-            match states.get_mut(&state.config) {
-                Some(sets) => { locsets = sets; }
-                None => { continue; }
-            }
+            let mut locsets = match states.entry(state.config.clone()) {
+                Entry::Occupied(o) => { o.into_mut() },
+                Entry::Vacant(v) => { v.insert(Vec::new()) },
+            };
             {
                 let mut visited = false;
                 for locs in locsets.iter() {

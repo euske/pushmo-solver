@@ -1,20 +1,18 @@
 // pushmo.rs
 
-use std::io::{File, BufferedReader};
+use std::old_io::{File, BufferedReader};
 use std::collections::{VecMap, HashMap, HashSet};
 use std::collections::hash_map::Entry;
 use std::rc::Rc;
 use std::char;
 use std::hash;
 use std::fmt;
+use std::cmp;
 use std::os;
 
 const INF:isize = std::isize::MAX;
 
 // misc. functions
-fn max(x:isize, y:isize) -> isize {
-    if x < y { y } else { x }
-}
 fn min(a:&[isize]) -> isize {
     let mut m = std::isize::MAX;
     for v in a.iter() {
@@ -49,8 +47,8 @@ impl PartialEq for Point {
     }
 }
 
-impl<H:hash::Hasher+hash::Writer> hash::Hash<H> for Point {
-    fn hash(&self, state:&mut H) {
+impl hash::Hash for Point {
+    fn hash<H: hash::Hasher>(&self, state:&mut H) {
         self.x.hash(state);
     }
 }
@@ -193,8 +191,8 @@ impl<'a> PartialEq for Config<'a> {
     }
 }
 
-impl<'a, H:hash::Hasher+hash::Writer> hash::Hash<H> for Config<'a> {
-    fn hash(&self, state:&mut H) {
+impl<'a> hash::Hash for Config<'a> {
+    fn hash<H: hash::Hasher>(&self, state:&mut H) {
         self.depths.hash(state);
     }
 }
@@ -324,7 +322,7 @@ impl <'a>Config<'a> {
                 let x1 = x0+dx;
                 let z = self.getdepth(x1, y0+1);
                 if zp <= z { continue; }
-                if max(z,z0-1) < self.getdepth(x1, y0) {
+                if cmp::max(z, z0-1) < self.getdepth(x1, y0) {
                     //println!(" jump1 ({},{}), ({},{})", x0,y0, x1,y0+1);
                     self.getlocs(locs, x1, y0+1);
                     continue
@@ -337,14 +335,14 @@ impl <'a>Config<'a> {
                 let x2 = x1+dx;
                 let z1 = self.getdepth(x2, y0+1);
                 if zp <= z1 { continue; }
-                if max(z1,z0) < self.getdepth(x2, y0) {
+                if cmp::max(z1,z0) < self.getdepth(x2, y0) {
                     //println!(" jump2 ({},{}), ({},{})", x0,y0, x2,y0+1);
                     self.getlocs(locs, x2, y0+1);
                     continue;
                 }
                 let z2 = self.getdepth(x2, y0);
                 if zp <= z2 { continue; }
-                if max(z2,z0) < self.getdepth(x2, y0-1) {
+                if cmp::max(z2, z0) < self.getdepth(x2, y0-1) {
                     //println!(" jump3 ({},{}), ({},{})", x0,y0, x2,y0);
                     self.getlocs(locs, x2, y0);
                     continue;
@@ -358,7 +356,7 @@ impl <'a>Config<'a> {
             if zp <= z { continue; }
             for dy in 0..(y0+1) {
                 let y1 = y0-dy;
-                if max(z,z0) < self.getdepth(x1, y1-1) {
+                if cmp::max(z, z0) < self.getdepth(x1, y1-1) {
                     //println!(" walk/fall ({},{}), ({},{})", x0,y0, x1,y1);
                     self.getlocs(locs, x1, y1);
                     break;
@@ -369,7 +367,7 @@ impl <'a>Config<'a> {
         for &dx in [-1,0,1].iter() {
             let x1 = x0+dx;
             let mut z = self.getdepth(x1, y0);
-            z = max(z, zp);
+            z = cmp::max(z, zp);
             for dy in 0..(y0+1) {
                 let y1 = y0-dy;
                 let z1 = self.getdepth(x1, y1-1);
@@ -379,7 +377,7 @@ impl <'a>Config<'a> {
                     self.getlocs(locs, x1, y1);
                     break;
                 }
-                z = max(z,z1);
+                z = cmp::max(z, z1);
             }
         }
         return;
@@ -515,7 +513,7 @@ fn main() {
             } else if arg.starts_with("-m") {
                 i += 1;
                 match args[i].parse::<isize>() {
-                    Some(x) => { max_depth = x; }
+                    Ok(x) => { max_depth = x; }
                     _ => {}
                 };
             } else {

@@ -8,7 +8,7 @@ use std::char;
 use std::hash;
 use std::fmt;
 use std::cmp;
-use std::os;
+use std::env;
 
 const INF:isize = std::isize::MAX;
 
@@ -28,7 +28,7 @@ struct Point {
     y: isize,
 }
 
-impl fmt::String for Point {
+impl fmt::Display for Point {
     fn fmt(&self, f:&mut fmt::Formatter) -> fmt::Result {
         write!(f, "({}, {})", self.x, self.y)
     }
@@ -504,22 +504,22 @@ fn main() {
     let mut verbose = false;
     let mut max_depth = 3;
     {
-        let args = os::args();
-        let mut i = 1;
-        while i < args.len() {
-            let arg = &args[i];
-            if arg.starts_with("-v") {
-                verbose = true;
-            } else if arg.starts_with("-m") {
-                i += 1;
-                match args[i].parse::<isize>() {
+        let args = env::args();
+        let mut optarg = false;
+        for arg in args.skip(1) {
+            if optarg {
+                match arg.parse::<isize>() {
                     Ok(x) => { max_depth = x; }
                     _ => {}
                 };
+                optarg = false;
+            } else if arg.starts_with("-v") {
+                verbose = true;
+            } else if arg.starts_with("-m") {
+                optarg = true;
             } else {
                 files.push(arg.clone());
             }
-            i += 1;
         }
     }
     for file in files.iter() {

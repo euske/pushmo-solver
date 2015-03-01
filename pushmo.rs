@@ -9,6 +9,7 @@ use std::hash;
 use std::fmt;
 use std::cmp;
 use std::env;
+use std::num::SignedInt;
 
 const INF:isize = std::isize::MAX;
 
@@ -113,6 +114,12 @@ impl Board {
     fn getseg(&self, x:isize, y:isize) -> Option<&usize> {
         let p = Point { x:x, y:y };
         self.loc2seg.get(&p)
+    }
+
+    fn getcost(&self, loc:&Point) -> usize {
+        let dx = self.goal.x - loc.x;
+        let dy = self.goal.y - loc.y;
+        return (dx.abs()+dy.abs()) as usize;
     }
     
     fn show(&self) {
@@ -387,6 +394,7 @@ impl <'a>Config<'a> {
 
 struct State<'a> {
     n: usize,
+    cost: usize,
     prev: Option<Rc<State<'a>>>,
     config: Config<'a>,
     loc: Point,
@@ -402,6 +410,7 @@ fn solve_pushmo(board:&Board, verbose:bool, max_depth:isize) -> Option<Vec<Step>
     let mut queue:Vec<State> = Vec::new();
     queue.push(State {
         n:0,
+        cost:board.getcost(&board.start),
         prev:None,
         config:Config::init(board),
         loc:board.start.clone(),
@@ -409,9 +418,13 @@ fn solve_pushmo(board:&Board, verbose:bool, max_depth:isize) -> Option<Vec<Step>
     let mut states:HashMap<Config, Vec<HashSet<Point>>> = HashMap::new();
     let mut solution:Option<Rc<State>> = None;
     while 0 < queue.len() {
-        queue.sort_by(|a, b| a.n.cmp(&b.n));
+        queue.sort_by(|a, b| a.cost.cmp(&b.cost));
         let state = queue.remove(0);
         let n = state.n+1;
+        if verbose {
+            println!("-- Move {} (cost:{}) --", n, state.cost);
+            state.config.show(&state.loc)
+        }
         let mut newlocs = HashSet::new();
         {
             let mut locsets = match states.entry(state.config.clone()) {
@@ -428,10 +441,6 @@ fn solve_pushmo(board:&Board, verbose:bool, max_depth:isize) -> Option<Vec<Step>
                 }
                 if visited { continue; }
             }
-            if verbose {
-                println!("-- Move {} --", n);
-                state.config.show(&state.loc)
-            }
             state.config.getlocs(&mut newlocs, state.loc.x, state.loc.y);
             locsets.push(newlocs.clone());
         }
@@ -444,6 +453,7 @@ fn solve_pushmo(board:&Board, verbose:bool, max_depth:isize) -> Option<Vec<Step>
         if newlocs.contains(&board.goal) {
             solution = Some(Rc::new(State {
                 n:n,
+                cost:0,
                 prev:Some(prev.clone()),
                 config:config.clone(),
                 loc:board.goal.clone(),
@@ -468,6 +478,7 @@ fn solve_pushmo(board:&Board, verbose:bool, max_depth:isize) -> Option<Vec<Step>
                     if states.contains_key(&next) { continue; }
                     queue.push(State {
                         n:n,
+                        cost:board.getcost(loc),
                         prev:Some(prev.clone()),
                         config:next,
                         loc:loc.clone(),

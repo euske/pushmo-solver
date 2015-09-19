@@ -1,15 +1,14 @@
 // pushmo.rs
 
-use std::old_io::{File, BufferedReader};
-use std::collections::{VecMap, HashMap, HashSet};
+use std::fs::File;
+use std::io::{BufReader, BufRead};
+use std::collections::{HashMap, HashSet};
 use std::collections::hash_map::Entry;
 use std::rc::Rc;
-use std::char;
 use std::hash;
 use std::fmt;
 use std::cmp;
 use std::env;
-use std::num::SignedInt;
 
 const INF:isize = std::isize::MAX;
 
@@ -63,7 +62,7 @@ fn fmtpts(pts:&HashSet<Point>) -> String {
     s.push_str("[");
     for i in pts.iter() {
         if 0 < n { s.push_str(", "); }
-        s.push_str(format!("{}", *i).as_slice());
+        s.push_str(& format!("{}", *i));
         n += 1;
     }
     s.push_str("]");
@@ -145,20 +144,20 @@ impl Board {
     }
     
     fn load(&mut self, lines:&Vec<String>) {
-        let mut d:VecMap<usize> = VecMap::new();
+        let mut d:HashMap<usize, usize> = HashMap::new();
         for (y,s) in lines.iter().enumerate() {
             let y = (lines.len()-1-y) as isize;
             let mut width = 0;
-            for (x,c) in s.as_slice().chars().enumerate() {
+            for (x,c) in s.chars().enumerate() {
                 let x = x as isize;
                 let p = Point { x:x, y:y };
                 //println!("{}={}", p, c);
-                if char::CharExt::is_whitespace(c) { continue; }
+                if char::is_whitespace(c) { continue; }
                 if c == '@' {
                     self.start = p.clone();
                 } else if c == '*' {
                     self.goal = p.clone();
-                } else if char::CharExt::is_alphanumeric(c) {
+                } else if char::is_alphanumeric(c) {
                     let i = match d.get(&(c as usize)) {
                         Some(&v) => { v }
                         None => {
@@ -244,7 +243,7 @@ impl <'a>Config<'a> {
                     match self.board.getseg(x, y) {
                         Some(&i) => {
                             let s = format!("{}", self.depths[i]);
-                            row.push_str(s.as_slice());
+                            row.push_str(&s);
                         }
                         None => { row.push('.'); }
                     }
@@ -464,13 +463,17 @@ fn solve_pushmo(board:&Board, verbose:bool, max_depth:isize) -> Option<Vec<Step>
             for srange in config.getsegs(loc).iter() {
                 let i = srange.seg;
                 let z1 = if 0 <= srange.z1 { srange.z1 } else { max_depth };
-                let depths = config.depths.as_slice();
+                let depths = &(config.depths);
                 for z in (srange.z0)..(z1+1) {
                     let mut d = Vec::new();
-                    d.push_all(&depths[..i]);
+                    for z0 in depths[..i].iter() {
+                        d.push(*z0);
+                    }
                     d.push(z);
-                    d.push_all(&depths[i+1..]);
-                    if 2 <= min(d.as_slice()) {
+                    for z0 in depths[i+1..].iter() {
+                        d.push(*z0);
+                    }
+                    if 2 <= min(&d) {
                         // all blocks pulled out by 2 - pointless.
                         continue;
                     }
@@ -533,13 +536,12 @@ fn main() {
             }
         }
     }
-    for file in files.iter() {
-        let path = Path::new(file.clone().into_bytes());
+    for path in files.iter() {
         let file = match File::open(&path) {
             Ok(f) => f,
             Err(e) => panic!("file error: {}", e),
         };
-        let mut reader = BufferedReader::new(file);
+        let reader = BufReader::new(file);
         let mut board = Board::new();
         let mut lines = Vec::new();
         for line in reader.lines() {

@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 import sys
-
-INF = sys.maxint
+from math import inf
 
 class Segment(object):
 
@@ -52,9 +51,9 @@ class Board(object):
         return self.loc2seg.get((x,y))
 
     def show(self):
-        for y in xrange(self.height, -1, -1):
+        for y in range(self.height, -1, -1):
             row = []
-            for x in xrange(0, self.width):
+            for x in range(0, self.width):
                 if self.start == (x,y):
                     row.append('@')
                 elif self.goal == (x,y):
@@ -65,7 +64,7 @@ class Board(object):
                         row.append('.')
                     else:
                         row.append(self.segments[i].name)
-            print ' '+''.join(row)
+            print(' '+''.join(row))
         return
 
 class Config(object):
@@ -76,9 +75,9 @@ class Config(object):
         return
 
     def show(self, loc):
-        for y in xrange(self.board.height, -1, -1):
+        for y in range(self.board.height, -1, -1):
             row = []
-            for x in xrange(0, self.board.width):
+            for x in range(0, self.board.width):
                 if loc == (x,y):
                     row.append('@')
                 elif self.board.goal == (x,y):
@@ -89,12 +88,12 @@ class Config(object):
                         row.append('.')
                     else:
                         row.append(str(self.depths[i]))
-            print ' '+''.join(row)
+            print(' '+''.join(row))
         return
 
     def getdepth(self, x, y):
         if y < 0:
-            return INF
+            return inf
         i = self.board.getseg(x, y)
         if i is None:
             return 0
@@ -145,7 +144,7 @@ class Config(object):
                     z = self.getdepth(x1, y0+1)
                     if zp <= z: continue
                     if max(z,z0-1) < self.getdepth(x1, y0):
-                        #print ' jump1', (x0,y0), (x1, y0+1)
+                        #print(' jump1', (x0,y0), (x1, y0+1))
                         expand(x1, y0+1)
                         continue
             for dx in (-1,+1):
@@ -155,22 +154,22 @@ class Config(object):
                     z = self.getdepth(x2, y0+1)
                     if zp <= z: continue
                     if max(z,z0) < self.getdepth(x2, y0):
-                        #print ' jump2', (x0,y0), (x2, y0+1)
+                        #print(' jump2', (x0,y0), (x2, y0+1))
                         expand(x2, y0+1)
                         continue
                     z = self.getdepth(x2, y0)
                     if zp <= z: continue
                     if max(z,z0) < self.getdepth(x2, y0-1):
-                        #print ' jump3', (x0,y0), (x2, y0)
+                        #print(' jump3', (x0,y0), (x2, y0))
                         expand(x2, y0)
             # check walking/falling.
             for dx in (-1,+1):
                 x1 = x0+dx
                 z = self.getdepth(x1, y0)
                 if zp <= z: continue
-                for y1 in xrange(y0, -1, -1):
+                for y1 in range(y0, -1, -1):
                     if max(z,z0) < self.getdepth(x1, y1-1):
-                        #print ' walk/fall', (x0,y0), (x1, y1)
+                        #print(' walk/fall', (x0,y0), (x1, y1))
                         expand(x1, y1)
                         break
             # check falling.
@@ -178,10 +177,10 @@ class Config(object):
                 x1 = x0+dx
                 z = self.getdepth(x1, y0)
                 z = max(z, zp)
-                for y1 in xrange(y0, -1, -1):
+                for y1 in range(y0, -1, -1):
                     z1 = self.getdepth(x1, y1-1)
                     if z < z1:
-                        #print ' fall', (x0,y0), (x1, y1), z,z1
+                        #print(' fall', (x0,y0), (x1, y1), z,z1)
                         expand(x1, y1)
                         break
                     z = max(z,z1)
@@ -212,12 +211,12 @@ def solve_pushmo(board, verbose=True, max_depth=3):
         if found: continue
         config = Config(board, depths)
         if verbose:
-            print '-- Move %d --' % n
+            print('-- Move %d --' % n)
             config.show(loc0)
         newlocs = config.getlocs(loc0)
         if verbose:
-            print ' Possible locations:', sorted(newlocs)
-            print
+            print(' Possible locations:', sorted(newlocs))
+            print()
         if board.goal in newlocs:
             solution = (n, prev, depths, board.goal)
             break
@@ -226,7 +225,7 @@ def solve_pushmo(board, verbose=True, max_depth=3):
             for (i,z0,z1) in config.getsegs(loc):
                 if z1 is None:
                     z1 = max_depth
-                for z in xrange(z0, z1+1):
+                for z in range(z0, z1+1):
                     d = depths[:i] + (z,) + depths[i+1:]
                     if 2 <= min(d): continue # all blocks pulled out by 2 - pointless.
                     if d in states: continue
@@ -243,7 +242,7 @@ def main(argv):
     import getopt
     import fileinput
     def usage():
-        print 'usage: %s [-v] [-m max_depth] [file ...]' % argv[0]
+        print('usage: %s [-v] [-m max_depth] [file ...]' % argv[0])
         return 100
     try:
         (opts, args) = getopt.getopt(argv[1:], 'vm:')
@@ -256,19 +255,19 @@ def main(argv):
         elif k == '-m': max_depth = int(v)
     fp = fileinput.input(args)
     board = Board([ line.strip() for line in fp ])
-    print '-- Initial state --'
+    print('-- Initial state --')
     board.show()
-    print
+    print()
     steps = solve_pushmo(board, verbose=verbose, max_depth=max_depth)
     if not steps:
-        print 'Unsolvable.'
+        print('Unsolvable.')
     else:
         for (i,depths,loc) in steps:
             config = Config(board, depths)
-            print '-- Move %d --' % i
+            print('-- Move %d --' % i)
             config.show(loc)
-            print
-        print 'Solved in %d steps.' % len(steps)
+            print()
+        print('Solved in %d steps.' % len(steps))
     return 0
 
 if __name__ == '__main__': sys.exit(main(sys.argv))
